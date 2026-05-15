@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fixed First Person Food Island - Ben & Bo</title>
+    <title>Anti-Glitch Food Island - Ben & Bo</title>
     <style>
         body { margin: 0; background: #4a80ff; font-family: 'Courier New', monospace; overflow: hidden; }
         #viewport { width: 100vw; height: 100vh; perspective: 600px; overflow: hidden; position: relative; background: #4a80ff; }
@@ -12,14 +12,21 @@
         .npc-skin { font-size: 80px; cursor: pointer; }
         .name-tag { color: white; background: rgba(0,0,0,0.7); padding: 5px; font-size: 16px; border-radius: 5px; display: inline-block; }
         #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; pointer-events: none; z-index: 1000; }
-        #ui-top { position: fixed; top: 20px; left: 20px; color: white; font-size: 30px; text-shadow: 3px 3px #000; z-index: 100; }
+        
+        /* UI Styles */
+        #ui-top { position: fixed; top: 20px; left: 20px; color: white; font-size: 30px; text-shadow: 3px 3px #000; z-index: 100; display: flex; gap: 20px; align-items: center; }
         #hotbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(0,0,0,0.6); border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100; }
         .slot { width: 55px; height: 55px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 30px; color: white;}
+        .panic-btn { background: #ff3333; border: 2px solid white; color: white; padding: 5px 10px; font-family: monospace; font-size: 14px; cursor: pointer; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="ui-top">💰 $<span id="money">0</span></div>
+    <div id="ui-top">
+        <span>💰 $<span id="money">0</span></span>
+        <button class="panic-btn" onclick="unstuckPlayer(event)">🚨 Respawn Unstuck</button>
+    </div>
+    
     <div id="crosshair">+</div>
     <div id="hotbar"><div class="slot" id="slot-count">0</div><div class="slot">🍎</div><div class="slot" style="background: #444;">⛏️</div></div>
 
@@ -34,22 +41,22 @@
     const camera = document.getElementById('camera');
     const world = document.getElementById('world');
     
+    // Player Setup
     let pX = 2500; let pY = 2500; 
-    let angleY = 0; // Left / Right
-    let angleX = -75; // Up / Down (Set to look forward at the horizon)
+    let angleY = 0; 
+    let angleX = -75; 
     
     let money = 0; let food = 0; let boatCost = 200;
     const ores = [];
 
-    // Lock Mouse
+    // Pointer Lock
     document.body.addEventListener('click', () => { document.body.requestPointerLock(); });
     
     document.addEventListener('mousemove', (e) => {
         if (document.pointerLockElement === document.body) {
-            angleY -= e.movementX * 0.2; // Turn Left/Right
-            angleX -= e.movementY * 0.2; // Look Up/Down
+            angleY -= e.movementX * 0.2; 
+            angleX -= e.movementY * 0.2; 
             
-            // Put limits so you can't flip your neck upside down
             if (angleX > -20) angleX = -20;
             if (angleX < -85) angleX = -85;
             
@@ -58,10 +65,7 @@
     });
 
     function updateCamera() {
-        // Combined math to rotate the universe correctly around Steve's eyes
         camera.style.transform = `rotateX(${angleX}deg) rotateZ(${angleY}deg) translate3d(${-pX}px, ${-pY}px, -150px)`;
-        
-        // Make sure billboards stand up and spin to follow your eyes
         document.querySelectorAll('.entity').forEach(entity => {
             entity.style.transform = `translate(-50%, -50%) rotateZ(${-angleY}deg) rotateX(${-angleX}deg)`;
         });
@@ -69,14 +73,12 @@
 
     function spawnWorld() {
         world.innerHTML = ""; ores.length = 0;
-        // Spawn Ores
         for(let i=0; i<15; i++) {
             let x = 1500 + Math.random() * 2000; let y = 1500 + Math.random() * 2000;
             const ore = document.createElement('div'); ore.className = 'entity ore';
             ore.style.left = x + 'px'; ore.style.top = y + 'px'; ore.innerHTML = "💎";
             world.appendChild(ore); ores.push({x, y, el: ore, active: true});
         }
-        // Spawn NPCs
         createNPC(2700, 2300, "🧐", "Villager (Click to Sell)", sellFood);
         createNPC(2300, 2700, "👨‍✈️", "Captain (Click for Boat)", buyBoat);
         updateCamera();
@@ -90,32 +92,26 @@
         world.appendChild(div);
     }
 
-    // FIXED MOVEMENT MECHANICS
+    // MOVEMENT MECHANICS + SAFETY BORDERS
     window.addEventListener('keydown', (e) => {
         const speed = 40;
         const key = e.key.toLowerCase();
         
-        // This converts your rotation angle to standard grid steps
         let rad = (angleY * Math.PI) / 180;
         let sin = Math.sin(rad);
         let cos = Math.cos(rad);
 
-        if (key === "w" || key === "arrowup") {
-            pX -= sin * speed;
-            pY += cos * speed;
-        }
-        if (key === "s" || key === "arrowdown") {
-            pX += sin * speed;
-            pY -= cos * speed;
-        }
-        if (key === "a" || key === "arrowleft") {
-            pX -= cos * speed;
-            pY -= sin * speed;
-        }
-        if (key === "d" || key === "arrowright") {
-            pX += cos * speed;
-            pY += sin * speed;
-        }
+        let nextX = pX;
+        let nextY = pY;
+
+        if (key === "w" || key === "arrowup") { nextX -= sin * speed; nextY += cos * speed; }
+        if (key === "s" || key === "arrowdown") { nextX += sin * speed; nextY -= cos * speed; }
+        if (key === "a" || key === "arrowleft") { nextX -= cos * speed; nextY -= sin * speed; }
+        if (key === "d" || key === "arrowright") { nextX += cos * speed; nextY += sin * speed; }
+        
+        // WORLD BORDERS: Prevent going outside 0 to 5000 range
+        if (nextX > 100 && nextX < 4900) pX = nextX;
+        if (nextY > 100 && nextY < 4900) pY = nextY;
         
         updateCamera();
         checkMining();
@@ -139,10 +135,21 @@
 
     function buyBoat() {
         if(money >= boatCost) {
-            money -= boatCost; boatCost += 150; pX = 2500; pY = 2500;
+            money -= boatCost; boatCost += 150;
+            unstuckPlayer(null); // Teleports to middle of new island
             world.style.backgroundColor = ["#5d994e", "#4e998e", "#8e994e"][Math.floor(Math.random()*3)];
             spawnWorld(); updateUI(); alert("Sailed to new chunks!");
         }
+    }
+
+    // THE PANIC RESET MECHANIC
+    function unstuckPlayer(event) {
+        if(event) event.stopPropagation(); // Stops mouse locking when clicking button
+        pX = 2500; pY = 2500; // Snap to middle
+        angleY = 0; angleX = -75; // Look straight ahead
+        updateCamera();
+        document.exitPointerLock(); // Give mouse control back to player
+        alert("Respawned safely at the center of Food Island!");
     }
 
     function updateUI() {
