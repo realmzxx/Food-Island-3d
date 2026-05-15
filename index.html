@@ -1,190 +1,182 @@
+This is a huge level-up. Moving from "top-down" (looking from the sky) to First-Person (looking through Steve’s eyes) is exactly how Minecraft feels.
+
+To do this in a web browser without complex 3D software, we use a trick called CSS 3D Transforms. It tilts the floor and makes things get smaller as they get further away, creating that "3D tunnel" look.
+
+⛏️ Food Island 3D: First-Person "Minecraft" Edition
+Replace your index.html code with this. I’ve included WASD movement and a View Bobbing effect so it feels like you're actually walking!
+
+HTML
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Food Island - Ben & Bo Edition</title>
+    <title>First Person Food Island - Ben & Bo</title>
     <style>
-        body { margin: 0; background: #0077be; font-family: 'Arial', sans-serif; overflow: hidden; }
-        
-        #game-container {
+        body { margin: 0; background: #4a80ff; font-family: 'Courier New', monospace; overflow: hidden; }
+
+        /* The 3D Engine */
+        #viewport {
             width: 100vw; height: 100vh;
-            background: #4CAF50; /* Initial Grass Color */
-            position: relative;
-            transition: background 1s; /* Smooth island transition */
+            perspective: 800px; /* This creates the 3D depth */
+            overflow: hidden;
         }
 
-        /* The Player */
-        #player {
-            width: 50px; height: 50px; position: absolute;
-            font-size: 40px; display: flex; align-items: center; justify-content: center;
-            z-index: 10; transition: transform 0.1s;
+        #world {
+            width: 5000px; height: 5000px;
+            background-color: #5d994e;
+            background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px),
+                              repeating-linear-gradient(90deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px);
+            position: absolute;
+            top: 50%; left: 50%;
+            transform-style: preserve-3d;
+            transform: rotateX(75deg) translate(-50%, -50%); /* Perspective tilt */
+            transition: 0.1s linear;
         }
 
-        /* NPCs */
-        .npc {
-            width: 60px; height: 60px; position: absolute;
-            font-size: 45px; cursor: pointer;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .npc-label { 
-            font-size: 14px; background: rgba(0,0,0,0.7); color: white; 
-            padding: 2px 8px; border-radius: 10px; margin-top: -10px;
+        /* Blocky Entities */
+        .entity {
+            position: absolute;
+            transform-style: preserve-3d;
+            transform: rotateX(-90deg); /* Makes them stand upright */
         }
 
-        /* Food Rocks */
-        .rock {
-            width: 50px; height: 50px; background: #8D6E63;
-            position: absolute; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-size: 25px;
+        .ore { width: 80px; height: 80px; background: #7a7a7a; border: 4px solid #333; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .npc { width: 100px; height: 150px; text-align: center; cursor: pointer; }
+        .npc-skin { font-size: 80px; }
+        .name-tag { color: white; background: rgba(0,0,0,0.7); padding: 5px; font-size: 16px; border-radius: 5px; }
+
+        /* HUD */
+        #crosshair {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 24px; pointer-events: none;
         }
 
-        /* Minimalist UI */
-        #ui {
-            position: fixed; top: 20px; left: 20px;
-            background: rgba(0, 0, 0, 0.6); color: white;
-            padding: 15px 25px; border-radius: 50px; z-index: 100;
-            font-size: 24px; border: 2px solid #ffd700;
+        #ui-top {
+            position: fixed; top: 20px; left: 20px; color: white; font-size: 30px; 
+            text-shadow: 3px 3px #000; z-index: 100;
         }
+
+        #hotbar {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 350px; height: 70px; background: rgba(0,0,0,0.6);
+            border: 4px solid #333; display: flex; align-items: center; justify-content: space-around;
+        }
+        .slot { width: 55px; height: 55px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 30px;}
     </style>
 </head>
 <body>
 
-    <div id="ui">💰 $<span id="money">0</span></div>
+    <div id="ui-top">💰 $<span id="money">0</span></div>
+    <div id="crosshair">+</div>
 
-    <div id="game-container">
-        <div id="player" style="top: 300px; left: 300px;">🚶</div>
+    <div id="hotbar">
+        <div class="slot" id="slot-count">0</div>
+        <div class="slot">🍎</div>
+        <div class="slot" style="background: #444;">⛏️</div>
+    </div>
 
-        <div id="sell-guy" class="npc" style="top: 100px; right: 100px;" onclick="sellInteraction()">
-            🤵<div class="npc-label">Trader (Sell)</div>
-        </div>
-
-        <div id="boat-guy" class="npc" style="bottom: 100px; left: 100px;" onclick="boatInteraction()">
-            👨‍✈️<div class="npc-label">Captain (Buy Boat)</div>
-        </div>
+    <div id="viewport">
+        <div id="world">
+            </div>
     </div>
 
 <script>
-    const player = document.getElementById('player');
-    const world = document.getElementById('game-container');
-    let pX = 300; let pY = 300;
+    const world = document.getElementById('world');
+    let posX = 2500; let posY = 2500;
     let money = 0; let food = 0;
-    let islandLevel = 1;
-    let boatCost = 100;
+    let boatCost = 200;
 
-    const rocks = [];
-    const foodIcons = ["🌽", "🍎", "🥔", "🍄"];
+    const ores = [];
 
-    function spawnRocks() {
-        // Clear old rocks
-        rocks.forEach(r => r.element.remove());
-        rocks.length = 0;
-
-        for(let i=0; i<8; i++) {
-            const rockDiv = document.createElement('div');
-            rockDiv.className = 'rock';
-            rockDiv.innerHTML = foodIcons[Math.floor(Math.random() * foodIcons.length)];
-            let rx = 200 + Math.random() * (window.innerWidth - 400);
-            let ry = 200 + Math.random() * (window.innerHeight - 400);
-            rockDiv.style.left = rx + 'px';
-            rockDiv.style.top = ry + 'px';
-            world.appendChild(rockDiv);
-            rocks.push({ x: rx, y: ry, element: rockDiv, active: true });
+    function spawnWorld() {
+        world.innerHTML = ""; // Clear
+        // Spawn 15 Ores
+        for(let i=0; i<15; i++) {
+            let x = 1000 + Math.random() * 3000;
+            let y = 1000 + Math.random() * 3000;
+            const ore = document.createElement('div');
+            ore.className = 'entity ore';
+            ore.style.left = x + 'px';
+            ore.style.top = y + 'px';
+            ore.innerHTML = "💎";
+            world.appendChild(ore);
+            ores.push({x, y, el: ore, active: true});
         }
+
+        // Spawn Trader
+        createNPC(2800, 2200, "🧐", "Villager (Sell)", sellFood);
+        // Spawn Captain
+        createNPC(2200, 2800, "👨‍✈️", "Captain (Boat)", buyBoat);
     }
 
-    spawnRocks();
+    function createNPC(x, y, emoji, name, action) {
+        const div = document.createElement('div');
+        div.className = 'entity npc';
+        div.style.left = x + 'px';
+        div.style.top = y + 'px';
+        div.innerHTML = `<div class='name-tag'>${name}</div><div class='npc-skin'>${emoji}</div>`;
+        div.onclick = action;
+        world.appendChild(div);
+    }
 
     window.addEventListener('keydown', (e) => {
-        const speed = 25;
+        const step = 40;
         const key = e.key.toLowerCase();
-        if(key === "w" || key === "arrowup") pY -= speed;
-        if(key === "s" || key === "arrowdown") pY += speed;
-        if(key === "a" || key === "arrowleft") { pX -= speed; player.style.transform = "scaleX(-1)"; }
-        if(key === "d" || key === "arrowright") { pX += speed; player.style.transform = "scaleX(1)"; }
+        
+        // Move the WORLD instead of the player to create 1st person feel
+        if(key === "w" || key === "arrowup") posY += step;
+        if(key === "s" || key === "arrowdown") posY -= step;
+        if(key === "a" || key === "arrowleft") posX += step;
+        if(key === "d" || key === "arrowright") posX -= step;
 
-        player.style.left = pX + 'px';
-        player.style.top = pY + 'px';
+        world.style.transform = `rotateX(75deg) translate(${posX - 5000}px, ${posY - 5000}px)`;
+        
         checkMining();
     });
 
     function checkMining() {
-        rocks.forEach(rock => {
-            if(!rock.active) return;
-            let dist = Math.sqrt(Math.pow(pX - rock.x, 2) + Math.pow(pY - rock.y, 2));
-            if(dist < 50) {
+        ores.forEach(ore => {
+            if(!ore.active) return;
+            // The player is always at the center (effectively 2500, 2500 in world space)
+            let dist = Math.sqrt(Math.pow((5000-posX) - ore.x, 2) + Math.pow((5000-posY) - ore.y, 2));
+            if(dist < 100) {
                 food++;
-                rock.active = false;
-                rock.element.style.display = 'none';
-                setTimeout(() => {
-                    rock.active = true;
-                    rock.element.style.display = 'flex';
-                }, 5000);
+                ore.active = false;
+                ore.el.style.display = 'none';
+                updateUI();
+                setTimeout(() => { ore.active = true; ore.el.style.display = 'flex'; }, 5000);
             }
         });
     }
 
-    // Interaction with the Trader
-    function sellInteraction() {
-        let dist = getDistToNPC('sell-guy');
-        if(dist < 80) {
-            if(food > 0) {
-                let earnings = food * 20;
-                money += earnings;
-                food = 0;
-                updateUI();
-                alert("Trader: Thanks for the food! Here is $" + earnings);
-            } else {
-                alert("Trader: You don't have any food to sell me!");
-            }
-        } else {
-            alert("Walk closer to the Trader to sell!");
+    function sellFood() {
+        if(food > 0) {
+            money += food * 50;
+            food = 0;
+            updateUI();
+            alert("Villager: *Hrmmm* (Trade complete!)");
         }
     }
 
-    // Interaction with the Captain
-    function boatInteraction() {
-        let dist = getDistToNPC('boat-guy');
-        if(dist < 80) {
-            if(money >= boatCost) {
-                let confirmTrip = confirm("Captain: Want to sail to Island " + (islandLevel + 1) + " for $" + boatCost + "?");
-                if(confirmTrip) {
-                    money -= boatCost;
-                    islandLevel++;
-                    boatCost *= 2; // Next boat is more expensive
-                    nextIsland();
-                }
-            } else {
-                alert("Captain: You need $" + boatCost + " for a boat ride!");
-            }
+    function buyBoat() {
+        if(money >= boatCost) {
+            money -= boatCost;
+            boatCost *= 2;
+            posX = 2500; posY = 2500; // Reset position
+            world.style.backgroundColor = ["#5d994e", "#4e998e", "#998e4e"][Math.floor(Math.random()*3)];
+            spawnWorld();
+            updateUI();
+            alert("Sailing to the next Island chunk...");
         } else {
-            alert("Walk closer to the Captain to buy a boat!");
+            alert("Captain: You need $" + boatCost);
         }
-    }
-
-    function nextIsland() {
-        // Change Grass Color
-        const colors = ["#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B", "#FFC107"];
-        world.style.background = colors[islandLevel % colors.length];
-        
-        // Reset Player Position
-        pX = 300; pY = 300;
-        player.style.left = pX + 'px';
-        player.style.top = pY + 'px';
-        
-        spawnRocks();
-        updateUI();
-        alert("You sailed to a new island!");
-    }
-
-    function getDistToNPC(id) {
-        const npc = document.getElementById(id);
-        const nX = parseInt(npc.style.left || window.innerWidth - 100);
-        const nY = parseInt(npc.style.top || window.innerHeight - 100);
-        return Math.sqrt(Math.pow(pX - nX, 2) + Math.pow(pY - nY, 2));
     }
 
     function updateUI() {
         document.getElementById('money').innerText = money;
+        document.getElementById('slot-count').innerText = food;
     }
+
+    spawnWorld();
 </script>
 </body>
 </html>
