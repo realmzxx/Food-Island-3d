@@ -1,158 +1,187 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Food Island 3D - Fixed Edition</title>
+    <title>Minecraft Food Island - Ben & Bo</title>
     <style>
-        body { margin: 0; background: #4a80ff; font-family: monospace; overflow: hidden; }
-        #viewport { width: 100vw; height: 100vh; perspective: 1000px; overflow: hidden; position: relative; }
+        body { margin: 0; background: #4a80ff; font-family: 'Courier New', monospace; overflow: hidden; }
         
-        /* This is the container that rotates when you move the mouse */
-        #scene {
-            width: 100%; height: 100%;
-            transform-style: preserve-3d;
-            position: absolute;
-        }
-
-        #floor {
-            width: 4000px; height: 4000px;
+        /* The Blocky Grid World */
+        #game-container {
+            width: 100vw; height: 100vh;
             background-color: #5d994e;
             background-image: 
-                linear-gradient(rgba(0,0,0,.1) 2px, transparent 2px),
-                linear-gradient(90deg, rgba(0,0,0,.1) 2px, transparent 2px);
+                linear-gradient(rgba(0,0,0,.08) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0,0,0,.08) 2px, transparent 2px);
             background-size: 64px 64px;
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%) rotateX(90deg); /* Lays it flat */
+            position: relative;
         }
 
-        .object {
-            position: absolute;
-            transform-style: preserve-3d;
-            width: 80px; height: 80px;
-            text-align: center;
+        /* Steve Character */
+        #player {
+            width: 50px; height: 50px;
+            background: #2b3e7d; border: 4px solid #1a1a1a;
+            position: absolute; z-index: 10;
+            display: flex; flex-direction: column; align-items: center;
+            transition: left 0.1s, top 0.1s;
+        }
+        #player::before { content: "🧔"; font-size: 30px; margin-top: -22px; }
+
+        /* Blocky Entities */
+        .entity {
+            width: 64px; height: 64px; position: absolute;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .ore { font-size: 40px; background: #7a7a7a; border: 3px solid #333; box-shadow: inset -4px -4px 0px rgba(0,0,0,0.4); }
+        
+        .npc { cursor: pointer; font-size: 45px; }
+        .name-tag { color: white; background: rgba(0,0,0,0.8); padding: 2px 6px; font-size: 12px; border-radius: 4px; margin-bottom: 2px; text-align: center; white-space: nowrap; }
+
+        /* Minecraft HUD */
+        #ui-top {
+            position: fixed; top: 20px; left: 20px;
+            color: white; font-size: 32px; text-shadow: 3px 3px #000; z-index: 100;
         }
 
-        /* HUD Elements */
-        #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; z-index: 10; pointer-events: none; }
-        #stats { position: fixed; top: 20px; left: 20px; color: white; font-size: 24px; text-shadow: 2px 2px #000; }
-        #hotbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); padding: 10px; border: 2px solid #fff; display: flex; gap: 20px; color: white; font-size: 20px; }
+        #hotbar {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 320px; height: 64px; background: rgba(0,0,0,0.6);
+            border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100;
+        }
+        .slot { width: 48px; height: 48px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="stats">💰 $<span id="money">0</span></div>
-    <div id="crosshair">+</div>
-    <div id="hotbar"><div>🍎 <span id="food">0</span></div><div>⛏️ Pickaxe</div></div>
+    <div id="ui-top">💰 $<span id="money">0</span></div>
 
-    <div id="viewport">
-        <div id="scene">
-            <div id="floor">
-                </div>
-        </div>
+    <div id="hotbar">
+        <div class="slot" id="slot-count">0</div>
+        <div class="slot">🍎</div>
+        <div class="slot" style="background: #444;">⛏️</div>
     </div>
 
+    <div id="game-container">
+        <div id="player" style="top: 320px; left: 320px;"></div>
+        </div>
+
 <script>
-    const scene = document.getElementById('scene');
-    const floor = document.getElementById('floor');
+    const container = document.getElementById('game-container');
+    const player = document.getElementById('player');
     
-    // Starting Position
-    let x = 0, y = 0, z = -200; 
-    let rotY = 0; // Looking Left/Right
-    let rotX = 0; // Looking Up/Down
+    // Grid alignment variables
+    const grid = 64;
+    let pX = 320; let pY = 320;
     
-    let money = 0, food = 0;
-    const items = [];
+    let money = 0; let food = 0; let boatCost = 150;
+    const ores = [];
 
-    // Mouse Lock
-    document.addEventListener('click', () => { document.body.requestPointerLock(); });
+    function spawnWorld() {
+        // Clear out old nodes
+        document.querySelectorAll('.entity').forEach(e => e.remove());
+        ores.length = 0;
 
-    document.addEventListener('mousemove', (e) => {
-        if (document.pointerLockElement === document.body) {
-            rotY -= e.movementX * 0.2;
-            rotX -= e.movementY * 0.2;
-            // Limit looking up and down
-            rotX = Math.max(-45, Math.min(45, rotX));
-            updateView();
+        // Spawn 12 Ore Blocks aligned to the grid lines
+        for(let i=0; i<12; i++) {
+            let rx = Math.floor(Math.random() * (window.innerWidth / grid - 2) + 1) * grid;
+            let ry = Math.floor(Math.random() * (window.innerHeight / grid - 2) + 1) * grid;
+            
+            const ore = document.createElement('div');
+            ore.className = 'entity ore';
+            ore.style.left = rx + 'px';
+            ore.style.top = ry + 'px';
+            ore.innerHTML = "💎";
+            container.appendChild(ore);
+            ores.push({x: rx, y: ry, el: ore, active: true});
         }
-    });
 
-    function updateView() {
-        // This is the magic math that keeps the camera attached to your head
-        scene.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg) translate3d(${-x}px, ${-z}px, ${-y}px)`;
+        // Spawn Villager Trader
+        createNPC(Math.floor(window.innerWidth/grid - 2) * grid, grid * 2, "🧐", "Villager (Click to Sell)", sellFood);
         
-        // Keep sprites facing you
-        document.querySelectorAll('.object').forEach(obj => {
-            obj.style.transform = `rotateY(${-rotY}deg) rotateX(${-rotX}deg)`;
-        });
+        // Spawn Captain
+        createNPC(grid * 2, Math.floor(window.innerHeight/grid - 3) * grid, "👨‍✈️", "Captain (Click for Boat)", buyBoat);
     }
 
-    function spawnItems() {
-        floor.innerHTML = "";
-        for(let i=0; i<20; i++) {
-            const item = document.createElement('div');
-            item.className = "object";
-            let ix = (Math.random() - 0.5) * 3000;
-            let iy = (Math.random() - 0.5) * 3000;
-            item.style.left = (ix + 2000) + "px";
-            item.style.top = (iy + 2000) + "px";
-            item.innerHTML = "<div style='font-size: 50px'>💎</div><div style='color:white; background:black'>Ore</div>";
-            floor.appendChild(item);
-            items.push({x: ix, y: iy, el: item, active: true});
-        }
+    function createNPC(x, y, emoji, name, action) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'entity';
+        wrapper.style.left = x + 'px';
+        wrapper.style.top = y + 'px';
         
-        // Trader
-        const trader = document.createElement('div');
-        trader.className = "object";
-        trader.style.left = "2200px"; trader.style.top = "1800px";
-        trader.innerHTML = "<div style='font-size: 60px'>🧐</div><div style='color:white; background:black'>Trader (Click)</div>";
-        trader.onclick = () => { if(food > 0) { money += food * 50; food = 0; updateUI(); alert("Sold!"); }};
-        floor.appendChild(trader);
+        wrapper.innerHTML = `<div class='name-tag'>${name}</div><div class='npc'>${emoji}</div>`;
+        wrapper.onclick = action;
+        container.appendChild(wrapper);
     }
 
+    // Flawless, Snap-to-Grid Movement
     window.addEventListener('keydown', (e) => {
-        const speed = 30;
-        let rad = rotY * Math.PI / 180;
+        const key = e.key.toLowerCase();
         
-        // WASD math that actually follows your eyes
-        if (e.key.toLowerCase() === 'w') {
-            x -= Math.sin(rad) * speed;
-            y += Math.cos(rad) * speed;
-        }
-        if (e.key.toLowerCase() === 's') {
-            x += Math.sin(rad) * speed;
-            y -= Math.cos(rad) * speed;
-        }
-        if (e.key.toLowerCase() === 'a') {
-            x -= Math.cos(rad) * speed;
-            y -= Math.sin(rad) * speed;
-        }
-        if (e.key.toLowerCase() === 'd') {
-            x += Math.cos(rad) * speed;
-            y += Math.sin(rad) * speed;
-        }
-        
-        updateView();
+        if (key === "w" || key === "arrowup") pY -= grid;
+        if (key === "s" || key === "arrowdown") pY += grid;
+        if (key === "a" || key === "arrowleft") pX -= grid;
+        if (key === "d" || key === "arrowright") pX += grid;
+
+        // Keep player inside screen edges
+        pX = Math.max(0, Math.min(window.innerWidth - grid, pX));
+        pY = Math.max(0, Math.min(window.innerHeight - grid, pY));
+
+        player.style.left = pX + 'px';
+        player.style.top = pY + 'px';
+
         checkMining();
     });
 
     function checkMining() {
-        items.forEach(item => {
-            if(!item.active) return;
-            let dist = Math.sqrt((x - item.x)**2 + (y - item.y)**2);
-            if(dist < 100) {
-                food++; item.active = false; item.el.style.display = "none";
+        ores.forEach(ore => {
+            if(!ore.active) return;
+            // Precise grid coordinate check
+            if (pX === ore.x && pY === ore.y) {
+                food++;
+                ore.active = false;
+                ore.el.style.visibility = 'hidden';
                 updateUI();
+                setTimeout(() => { 
+                    ore.active = true; 
+                    ore.el.style.visibility = 'visible'; 
+                }, 4000);
             }
         });
     }
 
-    function updateUI() {
-        document.getElementById('money').innerText = money;
-        document.getElementById('food').innerText = food;
+    function sellFood() {
+        if(food > 0) {
+            money += food * 40;
+            food = 0;
+            updateUI();
+            alert("Villager: *Hrmmm* Thanks for the diamonds!");
+        } else {
+            alert("Villager: You don't have any items!");
+        }
     }
 
-    spawnItems();
-    updateView(); // Initial position set
+    function buyBoat() {
+        if(money >= boatCost) {
+            money -= boatCost;
+            boatCost += 100;
+            // Change island environment tint
+            const colors = ["#5d994e", "#4e9981", "#78994e", "#4e8599"];
+            container.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            pX = 320; pY = 320;
+            player.style.left = pX + 'px'; player.style.top = pY + 'px';
+            spawnWorld();
+            updateUI();
+            alert("Sailed across the sea to new chunk coordinates!");
+        } else {
+            alert("Captain: You need $" + boatCost + " to catch a boat ride.");
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('money').innerText = money;
+        document.getElementById('slot-count').innerText = food;
+    }
+
+    spawnWorld();
 </script>
 </body>
 </html>
