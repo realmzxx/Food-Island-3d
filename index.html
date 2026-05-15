@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Minecraft Food Island - Ben & Bo</title>
+    <title>Minecraft Food Island - Face Edition</title>
     <style>
         body { margin: 0; background: #4a80ff; font-family: 'Courier New', monospace; overflow: hidden; }
         
-        /* The Blocky Grid World */
         #game-container {
             width: 100vw; height: 100vh;
             background-color: #5d994e;
@@ -16,163 +15,114 @@
             position: relative;
         }
 
-        /* Steve Character */
+        /* The Player with your Face */
         #player {
-            width: 50px; height: 50px;
-            background: #2b3e7d; border: 4px solid #1a1a1a;
+            width: 60px; height: 60px;
             position: absolute; z-index: 10;
             display: flex; flex-direction: column; align-items: center;
             transition: left 0.1s, top 0.1s;
         }
-        #player::before { content: "🧔"; font-size: 30px; margin-top: -22px; }
 
-        /* Blocky Entities */
+        #player-img {
+            width: 50px; height: 50px;
+            border: 3px solid #1a1a1a;
+            border-radius: 4px; 
+            object-fit: cover;
+            background: #2b3e7d; 
+        }
+
         .entity {
             width: 64px; height: 64px; position: absolute;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .ore { font-size: 40px; background: #7a7a7a; border: 3px solid #333; box-shadow: inset -4px -4px 0px rgba(0,0,0,0.4); }
-        
         .npc { cursor: pointer; font-size: 45px; }
-        .name-tag { color: white; background: rgba(0,0,0,0.8); padding: 2px 6px; font-size: 12px; border-radius: 4px; margin-bottom: 2px; text-align: center; white-space: nowrap; }
+        .name-tag { color: white; background: rgba(0,0,0,0.8); padding: 2px 6px; font-size: 12px; border-radius: 4px; margin-bottom: 2px; }
 
-        /* Minecraft HUD */
-        #ui-top {
-            position: fixed; top: 20px; left: 20px;
-            color: white; font-size: 32px; text-shadow: 3px 3px #000; z-index: 100;
-        }
-
-        #hotbar {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 320px; height: 64px; background: rgba(0,0,0,0.6);
-            border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100;
-        }
-        .slot { width: 48px; height: 48px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; font-weight: bold; }
+        #ui-top { position: fixed; top: 20px; left: 20px; color: white; font-size: 32px; text-shadow: 3px 3px #000; z-index: 100; }
+        #hotbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 320px; height: 64px; background: rgba(0,0,0,0.6); border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100; }
+        .slot { width: 48px; height: 48px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; }
     </style>
 </head>
 <body>
 
     <div id="ui-top">💰 $<span id="money">0</span></div>
-
-    <div id="hotbar">
-        <div class="slot" id="slot-count">0</div>
-        <div class="slot">🍎</div>
-        <div class="slot" style="background: #444;">⛏️</div>
-    </div>
+    <div id="hotbar"><div class="slot" id="slot-count">0</div><div class="slot">🍎</div><div class="slot" style="background: #444;">⛏️</div></div>
 
     <div id="game-container">
-        <div id="player" style="top: 320px; left: 320px;"></div>
+        <div id="player" style="top: 320px; left: 320px;">
+            <img src="face.jpg" id="player-img" alt="Me">
         </div>
+    </div>
 
 <script>
     const container = document.getElementById('game-container');
     const player = document.getElementById('player');
-    
-    // Grid alignment variables
     const grid = 64;
     let pX = 320; let pY = 320;
-    
     let money = 0; let food = 0; let boatCost = 150;
     const ores = [];
 
     function spawnWorld() {
-        // Clear out old nodes
         document.querySelectorAll('.entity').forEach(e => e.remove());
         ores.length = 0;
-
-        // Spawn 12 Ore Blocks aligned to the grid lines
         for(let i=0; i<12; i++) {
             let rx = Math.floor(Math.random() * (window.innerWidth / grid - 2) + 1) * grid;
             let ry = Math.floor(Math.random() * (window.innerHeight / grid - 2) + 1) * grid;
-            
             const ore = document.createElement('div');
             ore.className = 'entity ore';
-            ore.style.left = rx + 'px';
-            ore.style.top = ry + 'px';
+            ore.style.left = rx + 'px'; ore.style.top = ry + 'px';
             ore.innerHTML = "💎";
             container.appendChild(ore);
             ores.push({x: rx, y: ry, el: ore, active: true});
         }
-
-        // Spawn Villager Trader
-        createNPC(Math.floor(window.innerWidth/grid - 2) * grid, grid * 2, "🧐", "Villager (Click to Sell)", sellFood);
-        
-        // Spawn Captain
-        createNPC(grid * 2, Math.floor(window.innerHeight/grid - 3) * grid, "👨‍✈️", "Captain (Click for Boat)", buyBoat);
+        createNPC(Math.floor(window.innerWidth/grid - 2) * grid, grid * 2, "🧐", "Villager", sellFood);
+        createNPC(grid * 2, Math.floor(window.innerHeight/grid - 3) * grid, "👨‍✈️", "Captain", buyBoat);
     }
 
     function createNPC(x, y, emoji, name, action) {
         const wrapper = document.createElement('div');
         wrapper.className = 'entity';
-        wrapper.style.left = x + 'px';
-        wrapper.style.top = y + 'px';
-        
+        wrapper.style.left = x + 'px'; wrapper.style.top = y + 'px';
         wrapper.innerHTML = `<div class='name-tag'>${name}</div><div class='npc'>${emoji}</div>`;
         wrapper.onclick = action;
         container.appendChild(wrapper);
     }
 
-    // Flawless, Snap-to-Grid Movement
     window.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
-        
         if (key === "w" || key === "arrowup") pY -= grid;
         if (key === "s" || key === "arrowdown") pY += grid;
         if (key === "a" || key === "arrowleft") pX -= grid;
         if (key === "d" || key === "arrowright") pX += grid;
-
-        // Keep player inside screen edges
         pX = Math.max(0, Math.min(window.innerWidth - grid, pX));
         pY = Math.max(0, Math.min(window.innerHeight - grid, pY));
-
         player.style.left = pX + 'px';
         player.style.top = pY + 'px';
-
         checkMining();
     });
 
     function checkMining() {
         ores.forEach(ore => {
             if(!ore.active) return;
-            // Precise grid coordinate check
             if (pX === ore.x && pY === ore.y) {
-                food++;
-                ore.active = false;
-                ore.el.style.visibility = 'hidden';
+                food++; ore.active = false; ore.el.style.visibility = 'hidden';
                 updateUI();
-                setTimeout(() => { 
-                    ore.active = true; 
-                    ore.el.style.visibility = 'visible'; 
-                }, 4000);
+                setTimeout(() => { ore.active = true; ore.el.style.visibility = 'visible'; }, 4000);
             }
         });
     }
 
     function sellFood() {
-        if(food > 0) {
-            money += food * 40;
-            food = 0;
-            updateUI();
-            alert("Villager: *Hrmmm* Thanks for the diamonds!");
-        } else {
-            alert("Villager: You don't have any items!");
-        }
+        if(food > 0) { money += food * 40; food = 0; updateUI(); alert("Villager: *Hrmmm*"); }
     }
 
     function buyBoat() {
         if(money >= boatCost) {
-            money -= boatCost;
-            boatCost += 100;
-            // Change island environment tint
-            const colors = ["#5d994e", "#4e9981", "#78994e", "#4e8599"];
-            container.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            pX = 320; pY = 320;
-            player.style.left = pX + 'px'; player.style.top = pY + 'px';
-            spawnWorld();
-            updateUI();
-            alert("Sailed across the sea to new chunk coordinates!");
-        } else {
-            alert("Captain: You need $" + boatCost + " to catch a boat ride.");
+            money -= boatCost; boatCost += 100;
+            container.style.backgroundColor = ["#5d994e", "#4e9981", "#78994e"][Math.floor(Math.random() * 3)];
+            pX = 320; pY = 320; player.style.left = pX + 'px'; player.style.top = pY + 'px';
+            spawnWorld(); updateUI();
         }
     }
 
@@ -180,7 +130,6 @@
         document.getElementById('money').innerText = money;
         document.getElementById('slot-count').innerText = food;
     }
-
     spawnWorld();
 </script>
 </body>
