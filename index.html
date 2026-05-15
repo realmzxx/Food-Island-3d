@@ -1,190 +1,86 @@
-
-HTML
 <!DOCTYPE html>
 <html>
 <head>
     <title>First Person Food Island - Ben & Bo</title>
     <style>
         body { margin: 0; background: #4a80ff; font-family: 'Courier New', monospace; overflow: hidden; }
-
-        #viewport {
-            width: 100vw; height: 100vh;
-            perspective: 800px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* The 3D Camera Container */
-        #camera {
-            width: 100%; height: 100%;
-            transform-style: preserve-3d;
-            position: absolute;
-            transition: transform 0.05s linear;
-        }
-
-        #world {
-            width: 5000px; height: 5000px;
-            background-color: #5d994e;
-            background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px),
-                              repeating-linear-gradient(90deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px);
-            position: absolute;
-            top: 50%; left: 50%;
-            transform-style: preserve-3d;
-            transform: translate(-50%, -50%) rotateX(90deg); /* Flat ground floor */
-        }
-
-        /* 3D Billboards (Always face player) */
-        .entity {
-            position: absolute;
-            transform-style: preserve-3d;
-            transform: translate(-50%, -100%) rotateX(-90deg);
-            width: 100px; height: 150px;
-            text-align: center;
-        }
-
+        #viewport { width: 100vw; height: 100vh; perspective: 800px; overflow: hidden; position: relative; }
+        #camera { width: 100%; height: 100%; transform-style: preserve-3d; position: absolute; transition: transform 0.05s linear; }
+        #world { width: 5000px; height: 5000px; background-color: #5d994e; background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px), repeating-linear-gradient(90deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 2px, transparent 2px, transparent 64px); position: absolute; top: 50%; left: 50%; transform-style: preserve-3d; transform: translate(-50%, -50%) rotateX(90deg); }
+        .entity { position: absolute; transform-style: preserve-3d; transform: translate(-50%, -100%) rotateX(-90deg); width: 100px; height: 150px; text-align: center; }
         .ore { font-size: 60px; line-height: 80px; }
         .npc-skin { font-size: 80px; cursor: pointer; }
         .name-tag { color: white; background: rgba(0,0,0,0.7); padding: 5px; font-size: 16px; border-radius: 5px; display: inline-block; }
-
-        /* Crosshair */
-        #crosshair {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-size: 24px; pointer-events: none; z-index: 1000;
-        }
-
-        /* Minecraft UI */
-        #ui-top {
-            position: fixed; top: 20px; left: 20px; color: white; font-size: 30px; 
-            text-shadow: 3px 3px #000; z-index: 100;
-        }
-
-        #hotbar {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 350px; height: 70px; background: rgba(0,0,0,0.6);
-            border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100;
-        }
+        #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 24px; pointer-events: none; z-index: 1000; }
+        #ui-top { position: fixed; top: 20px; left: 20px; color: white; font-size: 30px; text-shadow: 3px 3px #000; z-index: 100; }
+        #hotbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 350px; height: 70px; background: rgba(0,0,0,0.6); border: 4px solid #333; display: flex; align-items: center; justify-content: space-around; z-index: 100; }
         .slot { width: 55px; height: 55px; background: #8b8b8b; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 30px; color: white;}
     </style>
 </head>
 <body>
-
     <div id="ui-top">💰 $<span id="money">0</span></div>
     <div id="crosshair">+</div>
-
-    <div id="hotbar">
-        <div class="slot" id="slot-count">0</div>
-        <div class="slot">🍎</div>
-        <div class="slot" style="background: #444;">⛏️</div>
-    </div>
-
-    <div id="viewport">
-        <div id="camera">
-            <div id="world">
-                </div>
-        </div>
-    </div>
-
+    <div id="hotbar"><div class="slot" id="slot-count">0</div><div class="slot">🍎</div><div class="slot" style="background: #444;">⛏️</div></div>
+    <div id="viewport"><div id="camera"><div id="world"></div></div></div>
 <script>
     const camera = document.getElementById('camera');
     const world = document.getElementById('world');
-    
-    // Player Position in the world map (Middle of 5000x5000 grid)
-    let pX = 2500; let pY = 2500;
-    let angleY = 0; // Direction player is looking
-    
-    let money = 0; let food = 0;
-    let boatCost = 200;
+    let pX = 2500; let pY = 2500; let angleY = 0; let money = 0; let food = 0; let boatCost = 200;
     const ores = [];
 
-    // Mouse Controls: Click the screen to lock mouse and look around
-    document.body.addEventListener('click', () => {
-        document.body.requestPointerLock();
-    });
-
+    document.body.addEventListener('click', () => { document.body.requestPointerLock(); });
     document.addEventListener('mousemove', (e) => {
         if (document.pointerLockElement === document.body) {
-            angleY -= e.movementX * 0.2; // Turn speed
+            angleY -= e.movementX * 0.2;
             updateCamera();
         }
     });
 
     function updateCamera() {
-        // Position camera and rotate based on mouse movement
         camera.style.transform = `rotateY(${angleY}deg) translate3d(${-pX}px, 200px, ${-pY}px)`;
-        
-        // Keep the objects facing the player's view
-        const entities = document.querySelectorAll('.entity');
-        entities.forEach(entity => {
+        document.querySelectorAll('.entity').forEach(entity => {
             entity.style.transform = `translate(-50%, -100%) rotateY(${-angleY}deg) rotateX(-90deg)`;
         });
     }
 
     function spawnWorld() {
-        world.innerHTML = ""; 
-        ores.length = 0;
-
-        // Spawn 15 Ores
+        world.innerHTML = ""; ores.length = 0;
         for(let i=0; i<15; i++) {
-            let x = 1500 + Math.random() * 2000;
-            let y = 1500 + Math.random() * 2000;
-            const ore = document.createElement('div');
-            ore.className = 'entity ore';
-            ore.style.left = x + 'px';
-            ore.style.top = y + 'px';
-            ore.innerHTML = "💎";
-            world.appendChild(ore);
-            ores.push({x, y, el: ore, active: true});
+            let x = 1500 + Math.random() * 2000; let y = 1500 + Math.random() * 2000;
+            const ore = document.createElement('div'); ore.className = 'entity ore';
+            ore.style.left = x + 'px'; ore.style.top = y + 'px'; ore.innerHTML = "💎";
+            world.appendChild(ore); ores.push({x, y, el: ore, active: true});
         }
-
-        // Spawn NPCs
         createNPC(2700, 2300, "🧐", "Villager (Click to Sell)", sellFood);
         createNPC(2300, 2700, "👨‍✈️", "Captain (Click for Boat)", buyBoat);
-        
         updateCamera();
     }
 
     function createNPC(x, y, emoji, name, action) {
-        const div = document.createElement('div');
-        div.className = 'entity npc';
-        div.style.left = x + 'px';
-        div.style.top = y + 'px';
+        const div = document.createElement('div'); div.className = 'entity npc';
+        div.style.left = x + 'px'; div.style.top = y + 'px';
         div.innerHTML = `<div class='name-tag'>${name}</div><div class='npc-skin'>${emoji}</div>`;
-        
-        // Click action on the NPC sprite itself
-        div.addEventListener('click', (e) => {
-            e.stopPropagation(); // Stop from resetting pointer lock
-            action();
-        });
+        div.addEventListener('click', (e) => { e.stopPropagation(); action(); });
         world.appendChild(div);
     }
 
-    // WASD Movement based on the direction you are looking
     window.addEventListener('keydown', (e) => {
-        const step = 30;
-        const key = e.key.toLowerCase();
-        
-        // Math to calculate forward/backward movement based on looking angle
+        const step = 35; const key = e.key.toLowerCase();
         let rad = (angleY * Math.PI) / 180;
-        let dx = Math.sin(rad) * step;
-        let dy = Math.cos(rad) * step;
-
-        if(key === "w" || key === "arrowup") { pX -= dx; pY -= dy; }
-        if(key === "s" || key === "arrowdown") { pX += dx; pY += dy; }
-        if(key === "a" || key === "arrowleft") { pX -= dy; pY += dx; }
-        if(key === "d" || key === "arrowright") { pX += dy; pY -= dx; }
-
-        updateCamera();
-        checkMining();
+        let dx = Math.sin(rad) * step; let dy = Math.cos(rad) * step;
+        if(key === "w") { pX -= dx; pY -= dy; }
+        if(key === "s") { pX += dx; pY += dy; }
+        if(key === "a") { pX -= dy; pY += dx; }
+        if(key === "d") { pX += dy; pY -= dx; }
+        updateCamera(); checkMining();
     });
 
     function checkMining() {
         ores.forEach(ore => {
             if(!ore.active) return;
             let dist = Math.sqrt(Math.pow(pX - ore.x, 2) + Math.pow(pY - ore.y, 2));
-            if(dist < 120) { // Mining distance
-                food++;
-                ore.active = false;
-                ore.el.style.display = 'none';
+            if(dist < 120) {
+                food++; ore.active = false; ore.el.style.display = 'none';
                 updateUI();
                 setTimeout(() => { ore.active = true; ore.el.style.display = 'block'; updateCamera(); }, 5000);
             }
@@ -192,31 +88,14 @@ HTML
     }
 
     function sellFood() {
-        let dist = Math.sqrt(Math.pow(pX - 2700, 2) + Math.pow(pY - 2300, 2));
-        if (dist > 250) return alert("Too far away from the Villager!");
-        if(food > 0) {
-            money += food * 50;
-            food = 0;
-            updateUI();
-            alert("Villager: *Hrmmm* (Thanks for the items!)");
-        } else {
-            alert("Villager: You have nothing to sell.");
-        }
+        if(food > 0) { money += food * 50; food = 0; updateUI(); alert("Villager: *Hrmmm!*"); }
     }
 
     function buyBoat() {
-        let dist = Math.sqrt(Math.pow(pX - 2300, 2) + Math.pow(pY - 2700, 2));
-        if (dist > 250) return alert("Too far away from the Captain!");
         if(money >= boatCost) {
-            money -= boatCost;
-            boatCost += 150;
-            pX = 2500; pY = 2500; // Reset player position
+            money -= boatCost; boatCost += 150; pX = 2500; pY = 2500;
             world.style.backgroundColor = ["#5d994e", "#4e998e", "#8e994e"][Math.floor(Math.random()*3)];
-            spawnWorld();
-            updateUI();
-            alert("Sailing to the next island chunks...");
-        } else {
-            alert("Captain: You need $" + boatCost + " for a boat ride.");
+            spawnWorld(); updateUI(); alert("New Island!");
         }
     }
 
@@ -224,7 +103,6 @@ HTML
         document.getElementById('money').innerText = money;
         document.getElementById('slot-count').innerText = food;
     }
-
     spawnWorld();
 </script>
 </body>
