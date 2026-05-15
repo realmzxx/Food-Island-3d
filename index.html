@@ -1,156 +1,168 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Food Island 3D - Adventure</title>
+    <title>Food Island 3D - Ben & Bo Edition</title>
     <style>
-        body { margin: 0; background: #87CEEB; font-family: 'Arial', sans-serif; overflow: hidden; }
+        body { margin: 0; background: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
         
-        /* The Game World */
         #game-container {
             width: 100vw; height: 100vh;
-            background: #4CAF50; /* Grass */
+            background: #4CAF50;
             position: relative;
-            /* This gives it a slight 3D perspective tilt */
-            transform: perspective(1000px) rotateX(10deg);
+            transform: perspective(1000px) rotateX(5deg);
         }
 
-        /* The Player */
+        /* The Player Character */
         #player {
-            width: 40px; height: 40px;
-            background: #FF5722; border: 3px solid #BF360C;
-            position: absolute; border-radius: 5px;
-            z-index: 10; transition: transform 0.1s;
-        }
-
-        /* Food Rocks */
-        .rock {
             width: 50px; height: 50px;
-            background: #795548; border-bottom: 5px solid #3E2723;
-            position: absolute; border-radius: 10px;
+            position: absolute;
+            font-size: 40px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 25px;
+            z-index: 10;
+            transition: transform 0.1s ease-out;
         }
 
-        /* Market Zone */
+        .rock {
+            width: 60px; height: 60px;
+            background: #8D6E63; border-bottom: 6px solid #4E342E;
+            position: absolute; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
         #market {
-            width: 150px; height: 150px;
-            background: rgba(255, 255, 255, 0.3);
-            border: 4px dashed white;
-            position: absolute; bottom: 20px; right: 20px;
+            width: 160px; height: 160px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 5px dashed #fff;
+            position: absolute; bottom: 30px; right: 30px;
+            border-radius: 20px;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; color: white;
+            font-weight: bold; color: white; text-align: center;
         }
 
-        /* UI Overlay */
         #ui {
             position: fixed; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.7); color: white;
+            background: rgba(255, 255, 255, 0.9);
             padding: 20px; border-radius: 15px; z-index: 100;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
         }
 
         button {
-            background: #FF9800; border: none; padding: 10px;
-            color: white; border-radius: 5px; cursor: pointer; margin-top: 10px;
+            background: #FF5722; border: none; padding: 12px;
+            color: white; border-radius: 8px; cursor: pointer; 
+            font-weight: bold; width: 100%; margin-top: 10px;
         }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <h2 style="margin:0">🏝️ Food Island</h2>
-        <p>💰 Money: $<span id="money">0</span></p>
-        <p>🍎 Food: <span id="food">0</span> / 10</p>
+        <h2 style="margin:0; color: #2E7D32;">🍎 Food Island</h2>
+        <p>💰 Money: <b>$<span id="money">0</span></b></p>
+        <p>🎒 Pack: <span id="food">0</span> / 12</p>
         <hr>
-        <small>Use ARROW KEYS to move<br>Touch rocks to MINE</small><br>
+        <small>Use <b>WASD</b> or <b>ARROWS</b></small>
         <button onclick="toasterGamble()">🎰 Toaster Island Gamble</button>
     </div>
 
     <div id="game-container">
-        <div id="player" style="top: 200px; left: 200px;"></div>
-        <div id="market">MARKET<br>(Walk here to sell)</div>
-        </div>
+        <div id="player" style="top: 200px; left: 200px;">🚶</div>
+        <div id="market">🧺 MARKET<br>(Drop off Food)</div>
+    </div>
 
 <script>
     const player = document.getElementById('player');
     const world = document.getElementById('game-container');
     let pX = 200; let pY = 200;
     let money = 0; let food = 0;
+    let facingLeft = false;
 
-    // Create 6 Food Rocks
     const rocks = [];
-    const icons = ["🍖", "🍞", "🧀", "🍎"];
+    const foodIcons = ["🍇", "🌽", "🥔", "🥕"];
 
     function createRock() {
         const rockDiv = document.createElement('div');
         rockDiv.className = 'rock';
-        rockDiv.innerHTML = icons[Math.floor(Math.random() * icons.length)];
-        let rx = Math.random() * (window.innerWidth - 100);
-        let ry = Math.random() * (window.innerHeight - 100);
+        rockDiv.innerHTML = foodIcons[Math.floor(Math.random() * foodIcons.length)];
+        let rx = Math.random() * (window.innerWidth - 120);
+        let ry = Math.random() * (window.innerHeight - 120);
         rockDiv.style.left = rx + 'px';
         rockDiv.style.top = ry + 'px';
         world.appendChild(rockDiv);
         return { x: rx, y: ry, element: rockDiv, active: true };
     }
 
-    for(let i=0; i<6; i++) { rocks.push(createRock()); }
+    for(let i=0; i<8; i++) { rocks.push(createRock()); }
 
-    // Movement Logic
     window.addEventListener('keydown', (e) => {
-        const speed = 20;
-        if(e.key === "ArrowUp") pY -= speed;
-        if(e.key === "ArrowDown") pY += speed;
-        if(e.key === "ArrowLeft") pX -= speed;
-        if(e.key === "ArrowRight") pX += speed;
+        const speed = 25;
+        const key = e.key.toLowerCase();
 
+        // Movement Logic (WASD + Arrows)
+        if(key === "w" || key === "arrowup") pY -= speed;
+        if(key === "s" || key === "arrowdown") pY += speed;
+        
+        if(key === "a" || key === "arrowleft") {
+            pX -= speed;
+            facingLeft = true;
+        }
+        if(key === "d" || key === "arrowright") {
+            pX += speed;
+            facingLeft = false;
+        }
+
+        // Update position and flip direction
         player.style.left = pX + 'px';
         player.style.top = pY + 'px';
+        player.style.transform = facingLeft ? "scaleX(-1)" : "scaleX(1)";
 
         checkCollisions();
     });
 
     function checkCollisions() {
-        // 1. Check for Mining Rocks
+        // Mining
         rocks.forEach(rock => {
             if(!rock.active) return;
             let dist = Math.sqrt(Math.pow(pX - rock.x, 2) + Math.pow(pY - rock.y, 2));
-            if(dist < 50 && food < 10) {
+            if(dist < 60 && food < 12) {
                 food++;
                 rock.active = false;
-                rock.element.style.opacity = "0";
+                rock.element.style.transform = "scale(0)";
                 updateUI();
-                // Respawn rock after 3 seconds
                 setTimeout(() => {
                     rock.active = true;
-                    rock.element.style.opacity = "1";
-                }, 3000);
+                    rock.element.style.transform = "scale(1)";
+                }, 4000);
             }
         });
 
-        // 2. Check for Market (Selling)
-        if(pX > window.innerWidth - 170 && pY > window.innerHeight - 170) {
+        // Market
+        if(pX > window.innerWidth - 180 && pY > window.innerHeight - 180) {
             if(food > 0) {
-                money += (food * 15);
+                money += (food * 25);
                 food = 0;
                 updateUI();
-                player.style.transform = "scale(1.2)";
-                setTimeout(() => player.style.transform = "scale(1)", 200);
             }
         }
     }
 
     function toasterGamble() {
-        if(money <= 0) return alert("No money to gamble!");
-        let bet = prompt("Put money in the toaster! How much?");
-        if(bet > money) return alert("You don't have that much!");
+        if(money <= 0) return alert("You're broke! Mine some veggies first.");
+        let bet = prompt("How much money for the Toaster?");
+        let amount = parseInt(bet);
         
-        if(Math.random() > 0.5) {
-            money += parseInt(bet);
-            alert("DING! It popped! You doubled your bet!");
+        if(amount > 0 && amount <= money) {
+            if(Math.random() > 0.5) {
+                money += amount;
+                alert("♨️ DING! You're a winner!");
+            } else {
+                money -= amount;
+                alert("🔥 BURNT! Better luck next time.");
+            }
+            updateUI();
         } else {
-            money -= parseInt(bet);
-            alert("Ouch... it burnt. You lost the money.");
+            alert("Invalid amount!");
         }
-        updateUI();
     }
 
     function updateUI() {
